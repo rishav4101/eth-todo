@@ -1,12 +1,11 @@
 import React, { Component } from "react";
-import SimpleStorageContract from "./contracts/SimpleStorage.json";
 import TodoListContract from "./contracts/TodoList.json";
 import getWeb3 from "./getWeb3";
 
 import "./App.css";
 
 class App extends Component {
-  state = { storageValue: 0, web3: null, accounts: null, contract: null, taskContract:null, tasks: [], inputTask: "" };
+  state = { web3: null, accounts: null, taskContract:null, tasks: [], inputTask: "" };
 
   componentDidMount = async () => {
     try {
@@ -18,22 +17,17 @@ class App extends Component {
 
       // Get the contract instance.
       const networkId = await web3.eth.net.getId();
-      const deployedNetwork = SimpleStorageContract.networks[networkId];
-      const deployedNetwork2 = TodoListContract.networks[networkId];
+      const deployedNetwork = TodoListContract.networks[networkId];
 
       const instance = new web3.eth.Contract(
-        SimpleStorageContract.abi,
-        deployedNetwork && deployedNetwork.address,
-      );
-
-      const instance2 = new web3.eth.Contract(
         TodoListContract.abi,
-        deployedNetwork2 && deployedNetwork2.address,
+        deployedNetwork && deployedNetwork.address,
       );
 
       // Set web3, accounts, and contract to the state, and then proceed with an
       // example of interacting with the contract's methods.
-      this.setState({ web3, accounts, contract: instance, taskContract: instance2 }, this.runExample);
+      this.setState({ web3, accounts, taskContract: instance }, this.runInitialState);
+
     } catch (error) {
       // Catch any errors for any of the above operations.
       alert(
@@ -43,30 +37,8 @@ class App extends Component {
     }
   };
 
-  runExample = async () => {
-    const { accounts, contract, taskContract } = this.state;
-
-    // Stores a given value, 5 by default.
-    await contract.methods.set(5).send({ from: accounts[0] });
-    // await taskContract.methods.createTask("hi babe!").send({ from: accounts[0] });
-
-    // Get the value from the contract to prove it worked.
-    const response = await contract.methods.get().call();
-    const tsk = await taskContract.methods.getTaskCount().call();
-
-    const ar = [];
-
-    for(var i = 0; i<tsk; i++){
-      const task = await taskContract.methods.getTask(i).call();
-      console.log(task[0]);
-      if(task[2] === false)
-        ar.push({"task": task[0], "status": task[1]});
-    }
-
-    console.log(ar);
-
-    // Update state with the result.
-    this.setState({ storageValue: response, tasks: ar });
+  runInitialState = async () => {
+    await this.updateState();
     console.log(this.state.tasks);
   };
 
@@ -76,39 +48,51 @@ class App extends Component {
     });
   }
 
-  createtask = async () => {
-    const { accounts, taskContract, inputTask } = this.state;
-    await taskContract.methods.createTask(inputTask).send({ from: accounts[0] });
+  updateState = async () => {
+    const { taskContract } = this.state;
+    const tsk = await taskContract.methods.getTaskCount().call();
 
     const ar = [];
 
-    const tsk = await taskContract.methods.getTaskCount().call();
-
     for(var i = 0; i<tsk; i++){
       const task = await taskContract.methods.getTask(i).call();
-      if(task[2] === false)
-        ar.push({"task": task[0], "status": task[1]});
+      if(task[3] === false)
+        ar.push({"id": task[0], "task": task[1], "status": task[2], "deleted":task[3]});
     }
 
     // Update state with the result.
-    this.setState({tasks: ar, inputTask: "" });
+    this.setState({ tasks: ar });
+  }
+
+  createtask = async () => {
+    const { accounts, taskContract, inputTask } = this.state;
+    await taskContract.methods.createTask(inputTask).send({ from: accounts[0], gas:100000 });
+
+    await this.updateState();
+    this.setState({inputTask: "" });
   }
 
   deleteAll = async () => {
     const { accounts, taskContract, inputTask } = this.state;
     const tsk = await taskContract.methods.getTaskCount().call();
-    console.log(tsk);
 
     for(var i = 0; i<tsk; i++){
-      var a = await taskContract.methods.del(i).call();
+     var a = await taskContract.methods.deleteTask(i).send({ from: accounts[0], gas:100000 });
     }
 
-    console.log(a)
+    await this.updateState();
+  }
 
-    const tskc = await taskContract.methods.getTaskCount().call();
-    console.log(tskc);
-    // Update state with the result.
-    this.setState({tasks: [] });
+  deleteOne = async id => {
+    const { accounts, taskContract, inputTask } = this.state;
+    var a = await taskContract.methods.deleteTask(id).send({ from: accounts[0], gas:100000 });
+    await this.updateState();
+  }
+
+  toggleComp = async id => {
+    const { accounts, taskContract } = this.state;
+    await taskContract.methods.toggleComplete(id).send({ from: accounts[0], gas:100000 });
+    await this.updateState();
   }
 
   render() {
@@ -117,21 +101,10 @@ class App extends Component {
     }
     return (
       <div className="App">
-        <h1>Good to Go!</h1>
-        <p>Your Truffle Box is installed and ready.</p>
+        <h1>TODO DAPP</h1>
         <h2>Smart Contract Example</h2>
-        <p>
-          If your contracts compiled and migrated successfully, below will show
-          a stored value of 5 (by default).
-        </p>
-        <p>
-          Try changing the value stored on <strong>line 40</strong> of App.js.
-        </p>
-        <div>The stored value is: {this.state.storageValue}</div>
         <div>Your account: {this.state.accounts[0]}</div>
-        {this.state.tasks.map((val) => (
-          <div>{val.task}</div>
-        ))}
+        <br/>
         <input
         placeholder="Enter todo task..."
         type="text" 
@@ -141,6 +114,14 @@ class App extends Component {
         />
         <button onClick={this.createtask}> create </button>
         <button onClick={this.deleteAll}> Delete all </button>
+        <br/>
+        <h2>All Tasks</h2>
+        {this.state.tasks.map((val) => (
+          <div key={val.id}><input type="checkbox" defaultChecked={val.status} onChange={() => this.toggleComp(val.id)}/> {val.task} 
+          <button onClick={() => this.deleteOne(val.id)}>Delete</button>
+          </div>
+        ))}
+        
       </div>
     );
   }

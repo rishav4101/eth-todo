@@ -1,11 +1,8 @@
-pragma solidity >=0.4.21 <0.7.0;
+// SPDX-License-Identifier: MIT
+pragma solidity >0.5.2;
 
 contract TodoList {
   uint public taskCount = 0;
-
-  constructor() public {
-        createTask("");
-      }
 
   struct Task {
     uint id;
@@ -15,25 +12,37 @@ contract TodoList {
   }
 
   mapping(uint => Task) public tasksMap;
+  // Task[] public tasksMap;
 
   function createTask(string memory _content) public {
-    taskCount ++;
     tasksMap[taskCount] = Task(taskCount, _content, false, false);
+    // tasksMap.push(task);
+    taskCount ++;
   }
   
   function getTaskCount() public view returns (uint) {
     return taskCount;
   }
 
-  function getTask(uint id) public view returns (string memory, bool, bool) {
-    string memory cont = tasksMap[id].content;
-    bool state = tasksMap[id].completed;
-    bool del = tasksMap[id].deleted;
-    return (cont, state, del);
+  function getTask(uint _i) public view returns (uint, string memory, bool, bool) {
+    uint id = _i;
+    string memory cont = tasksMap[_i].content;
+    bool state = tasksMap[_i].completed;
+    bool dele = tasksMap[_i].deleted;
+    return (id, cont, state, dele);
   }
 
-  function del(uint id) public {
-    tasksMap[id].deleted = true;
+  function deleteTask(uint _id) public returns (string memory) {
+    // tasksMap[id] = Task(id, "", false, true);
+    // Task storage task = tasksMap[id];
+    // task.deleted = true;
+    tasksMap[_id].deleted = true; 
+
+    return tasksMap[_id].content;
+  }
+
+  function toggleComplete(uint _id) public {
+    tasksMap[_id].completed = !tasksMap[_id].completed;
   }
 
 }
